@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Northstar Homes - AI Sales Assistant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app">
+
+        <header class="header">
+            <div>
+                <h1>Northstar Homes</h1>
+                <p>Northstar One · Sector 79, Gurugram</p>
+            </div>
+
+            <button id="resetBtn" class="reset-btn">
+                New Conversation
+            </button>
+        </header>
+
+        <main class="chat-container">
+
+            <div id="chatBox" class="chat-box">
+                <div class="message assistant">
+                    <div class="avatar">N</div>
+                    <div class="bubble">
+                        Hi! 👋 Welcome to Northstar Homes.
+                        I'm your virtual sales assistant for Northstar One,
+                        Sector 79, Gurugram. How can I help you today?
+                    </div>
+                </div>
+            </div>
+
+            <div class="typing" id="typing">
+                Northstar Assistant is typing...
+            </div>
+
+            <div class="input-area">
+                <textarea
+                    id="messageInput"
+                    placeholder="Type your message..."
+                    rows="1"
+                ></textarea>
+
+                <button id="sendBtn" class="send-btn">
+                    Send
+                </button>
+            </div>
+
+            <div class="quick-actions">
+                <button data-message="What configurations are available?">
+                    Configurations
+                </button>
+
+                <button data-message="What is the price?">
+                    Pricing
+                </button>
+
+                <button data-message="I want to book a site visit">
+                    Book Site Visit
+                </button>
+            </div>
+
+        </main>
+
+        <footer>
+            AI Sales Assistant · Northstar Homes
+        </footer>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
