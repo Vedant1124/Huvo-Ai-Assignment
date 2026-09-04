@@ -65,13 +65,14 @@ def chat(req: ChatRequest):
 			if resp.success:
 				# update session and append assistant confirmation
 				session_manager.update_customer_state(sid, site_visit_status=SiteVisitStatus.booked)
-				session_manager.add_assistant_message(sid, f"Booking confirmed: {resp.booking_id} for {resp.slot.isoformat()}")
+				session_manager.add_assistant_message(sid, "Your site visit has been successfully booked for the requested date and time. Thank you!")
 				return ChatResponse(
 					session_id=sid,
-					reply=f"Booking confirmed: {resp.booking_id}",
+					reply="Your site visit has been successfully booked for the requested date and time. Thank you!",
 					success=True,
 					state=session_manager.get_customer_state(sid),
 					messages=session_manager.get_history(sid),
+					conversation_ended=True,
 				)
 			else:
 				# booking failed; update state and inform user
@@ -83,10 +84,12 @@ def chat(req: ChatRequest):
 					success=False,
 					state=session_manager.get_customer_state(sid),
 					messages=session_manager.get_history(sid),
+					conversation_ended=False,
 				)
 
 		# No booking datetime found; proceed with normal assistant generation
 		reply, updated_state = agent.generate(history, state)
+		conversation_ended = agent.should_end_conversation(history, updated_state)
 
 		# store assistant message
 		session_manager.add_assistant_message(sid, reply)
@@ -102,6 +105,7 @@ def chat(req: ChatRequest):
 			success=True,
 			state=updated_state,
 			messages=session_manager.get_history(sid),
+			conversation_ended=conversation_ended,
 		)
 	except SessionNotFoundError:
 		raise HTTPException(status_code=404, detail="Session not found")
@@ -160,4 +164,3 @@ def analytics_endpoint(body: dict):
 		raise HTTPException(status_code=404, detail="Session not found")
 	except Exception:
 		raise HTTPException(status_code=500, detail="internal server error")
-
