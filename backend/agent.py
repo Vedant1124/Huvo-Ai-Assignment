@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 from typing import List, Tuple, Optional, Dict
 from datetime import datetime
 
@@ -81,7 +82,7 @@ class SimpleGroqClient:
                 if "choices" in j and j["choices"]:
                     c = j["choices"][0]
                     if isinstance(c, dict) and "message" in c and "content" in c["message"]:
-                        return str(c["message"]["content"]) 
+                        return str(c["message"]["content"])
                     if isinstance(c, dict) and "text" in c:
                         return str(c["text"])
             except Exception:
@@ -307,72 +308,209 @@ class Agent:
             return False
 
         text = last_user.lower()
-        english = [
+
+        # Normalize to catch punctuation/spacing variations and Hindi/Hinglish phrasing.
+        normalized = re.sub(r"[^a-zA-Z0-9\u0900-\u097F\s]", " ", text)
+        normalized = " ".join(normalized.split())
+
+        patterns = [
             "talk to a human",
             "talk to human",
             "talk to sales rep",
+            "talk to sales representative",
+            "talk to sales guy",
             "speak to a human",
             "speak to human",
             "speak to sales rep",
-            "connect me with a human",
-            "connect me with sales rep",
+            "speak to sales representative",
+            "speak to a sales representative",
+            "speak to someone",
+            "speak with someone",
+            "want to talk to someone",
+            "want to talk to your sales guy",
+            "want to speak to someone",
+            "want to speak with your sales team",
             "sales representative",
             "sales rep",
+            "sales guy",
+            "sales team",
             "customer care",
             "customer support",
             "agent",
             "human sales",
             "human representative",
             "representative",
-            "connect with team",
-            "talk to team",
-            "need a human",
-            "need sales",
-            "connect with sales",
+            "connect me with a person",
+            "connect me with a human",
+            "connect me with sales rep",
+            "connect me with sales representative",
+            "connect me with a person",
+            "can someone from sales call me",
+            "can someone from sales contact me",
+            "can i talk to a sales representative",
+            "can i speak to someone",
             "someone from sales",
-            "human executive",
-            "sales executive",
-            "talk to someone",
-        ]
-        hindi = [
+            "talk to your sales guy",
+            "speak with your sales team",
+            "sales wale se baat",
+            "sales wale se baat karni hai",
+            "mujhe sales wale se baat karni hai",
+            "sales guy se baat karni hai",
+            "mujhe kisi representative se baat karni hai",
+            "mujhe kisi sales representative se baat karni hai",
+            "mujhe kisi se baat karni hai",
+            "mujhe ek human se baat karni hai",
             "human se baat karna hai",
-            "sales rep se baat",
-            "agent se connect",
-            "sales representative se connect",
-            "sales rep se milna hai",
-            "human representative",
-            "team se baat",
-            "customer care",
-            "human se connect",
-            "sales executive",
-            "ek agent",
-            "ek sales rep",
-            "agent chahiye",
-            "human chahiye",
-            "representative chahiye",
-            "sales team",
-            "team se connect",
-            "rozn se contact",
-        ]
-        hinglish = [
             "human se connect",
             "sales rep se connect",
             "agent se connect",
-            "human ko call",
+            "sales representative se connect",
+            "rep se baat karni hai",
+            "team se baat karni hai",
+            "sales executive",
+            "human executive",
+            "kisi sales rep se",
+            "kisi representative se",
             "sales rep chahiye",
             "agent chahiye",
+            "human chahiye",
             "team se connect karna hai",
-            "rep se baat karni hai",
-            "human se talk",
+            "ek agent chahiye",
+            "ek sales rep chahiye",
             "sales rep se talk",
+            "human se talk",
             "agent se baat",
-            "human representative chahiye",
-            "sales executive chahiye",
-            "human sales rep",
-            "agent please",
+            "sales guy se baat",
         ]
-        any_terms = english + hindi + hinglish
-        return any(term in text for term in any_terms)
+
+        direct_phrases = [
+            "i want to talk to your sales guy",
+            "i want to speak to someone",
+            "i want to speak with your sales team",
+            "can i talk to a sales representative",
+            "connect me with a person",
+            "can someone from sales call me",
+            "mujhe sales wale se baat karni hai",
+            "sales guy se baat karni hai",
+            "mujhe kisi representative se baat karni hai",
+        ]
+
+        for phrase in patterns + direct_phrases:
+            if phrase in normalized:
+                return True
+
+        # Support intent phrasing without an explicit "sales" keyword, e.g. "talk to someone".
+        if "talk to someone" in normalized or "speak to someone" in normalized:
+            return True
+
+        # Support direct human-request patterns with optional filler words.
+        if re.search(r"\b(?:talk|speak|chat|connect)\b.*\b(?:someone|person|human|representative|sales(?:\s+guy|\s+rep|\s+team)?)\b", normalized):
+            return True
+
+        if re.search(r"\b(?:mujhe|mai|main|hume|humko)\b.*\b(?:sales|representative|human|agent|team|person)\b.*\b(?:se|ko)\b.*\b(?:baat|talk|connect)\b", normalized):
+            return True
+
+        return False
+
+    def _is_conversation_closing(self, history: List[ChatMessage]) -> bool:
+        """Detect if the conversation is being closed by the user.
+
+        Checks the last user message for common closing phrases.
+        """
+        last_user = None
+        for message in reversed(history):
+            if message.role == Role.user:
+                last_user = message.content
+                break
+        if not last_user:
+            return False
+
+        text = last_user.lower()
+        # Regex to match variations of closing statements
+        closing_patterns = [
+            r"\b(thank you|thanks|that's all|no more questions?|i'm done|that's it|close the chat|end the conversation)\b",
+            r"\b(thank you for your help|thanks for the information|appreciate your assistance)\b",
+            r"\b(bye|goodbye|see you|take care|have a great day)\b",
+        ]
+        return any(re.search(pattern, text) for pattern in closing_patterns)
+
+    def _is_conversation_closing_message(self, text: str) -> bool:
+        if not text:
+            return False
+
+        normalized = re.sub(r"[^a-zA-Z0-9\u0900-\u097F\s]", " ", text.lower())
+        normalized = " ".join(normalized.split())
+
+        closing_phrases = [
+            "bye",
+            "goodbye",
+            "okay bye",
+            "byee",
+            "thanks that's all",
+            "thank you that's all",
+            "thanks that is all",
+            "thank you that is all",
+            "that's all",
+            "thats all",
+            "that is all",
+            "no more questions",
+            "no more queries",
+            "okay no more questions",
+            "no further questions",
+            "all set",
+            "that's it",
+            "thats it",
+            "bas itna hi tha",
+            "bas itna hi",
+            "aur sawal nahi",
+            "aur questions nahi",
+            "koi sawal nahi",
+            "abhi ke liye bye",
+            "bye thanks",
+            "thanks bye",
+            "thank you bye",
+            "good night",
+            "take care",
+            "see you",
+            "talk to you later",
+        ]
+
+        for phrase in closing_phrases:
+            if phrase in normalized:
+                return True
+
+        # Catch common Hindi/Hinglish variants with short phrases that are still explicit enders.
+        hindi_markers = [
+            "bye",
+            "goodbye",
+            "bas ho gaya",
+            "bas hua",
+            "aur sawal nahi",
+            "koi sawal nahi",
+            "dhanyavaad bas",
+            "shukriya bas",
+            "abhi ke liye",
+            "aab bye",
+        ]
+        if any(marker in normalized for marker in hindi_markers):
+            return True
+
+        return False
+
+    def should_end_conversation(self, history: List[ChatMessage], state: CustomerState) -> bool:
+        if state.do_not_contact or state.escalation_required:
+            return True
+
+        last_user = None
+        for message in reversed(history):
+            if message.role == Role.user:
+                last_user = message.content
+                break
+
+        if not last_user:
+            return False
+
+        return self._is_conversation_closing_message(last_user)
 
     def generate(self, history: List[ChatMessage], state: CustomerState) -> Tuple[str, CustomerState]:
         """Generate assistant response and optionally update state.
@@ -396,6 +534,9 @@ class Agent:
         # Respect escalation flag
         if state.escalation_required:
             return ("Sure, our team will contact you soon. Thanks for your time and for speaking with Northstar Homes!", state)
+
+        if self.should_end_conversation(history, state):
+            return ("Thank you for your time. Have a nice day!", state)
 
         # Call LLM (Groq). Handle API errors cleanly.
         try:
