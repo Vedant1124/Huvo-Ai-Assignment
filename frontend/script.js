@@ -1,12 +1,23 @@
 const API_URL = "http://localhost:8000";
 
 let sessionId = localStorage.getItem("northstar_session_id");
+let conversationEnded = false;
 
 const chatBox = document.getElementById("chatBox");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 const resetBtn = document.getElementById("resetBtn");
 const typing = document.getElementById("typing");
+
+const conversationEndedNotice = document.createElement("div");
+conversationEndedNotice.id = "conversationEndedNotice";
+conversationEndedNotice.textContent = "Conversation ended";
+conversationEndedNotice.style.display = "none";
+conversationEndedNotice.style.margin = "8px 0 0";
+conversationEndedNotice.style.fontSize = "12px";
+conversationEndedNotice.style.color = "#6b7280";
+conversationEndedNotice.style.textAlign = "center";
+chatBox.parentNode.appendChild(conversationEndedNotice);
 
 function addMessage(role, text) {
     const message = document.createElement("div");
@@ -29,12 +40,25 @@ function addMessage(role, text) {
 }
 
 function setLoading(isLoading) {
-    sendBtn.disabled = isLoading;
-    messageInput.disabled = isLoading;
+    sendBtn.disabled = isLoading || conversationEnded;
+    messageInput.disabled = isLoading || conversationEnded;
+    document.querySelectorAll(".quick-actions button").forEach((button) => {
+        button.disabled = isLoading || conversationEnded;
+    });
     typing.style.display = isLoading ? "block" : "none";
+
+    if (conversationEnded) {
+        conversationEndedNotice.style.display = "block";
+    } else {
+        conversationEndedNotice.style.display = "none";
+    }
 }
 
 async function sendMessage(text = null) {
+    if (conversationEnded) {
+        return;
+    }
+
     const message = text || messageInput.value.trim();
 
     if (!message) {
@@ -73,6 +97,10 @@ async function sendMessage(text = null) {
 
         addMessage("assistant", data.reply);
 
+        if (data.conversation_ended === true) {
+            conversationEnded = true;
+        }
+
     } catch (error) {
         console.error(error);
 
@@ -82,7 +110,9 @@ async function sendMessage(text = null) {
         );
     } finally {
         setLoading(false);
-        messageInput.focus();
+        if (!conversationEnded) {
+            messageInput.focus();
+        }
     }
 }
 
@@ -105,6 +135,8 @@ async function resetConversation() {
 
     sessionId = null;
     localStorage.removeItem("northstar_session_id");
+    conversationEnded = false;
+    setLoading(false);
 
     chatBox.innerHTML = "";
 
